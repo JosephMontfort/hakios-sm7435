@@ -89,7 +89,13 @@ Pulls the Adreno 710 GMU/SQE/ZAP firmware (`fw-gpu/`), audio DSP firmware (`fw-a
 
 ---
 
-## Maintainer & Attribution
+## Maintainers & Credits
 
-Maintained by **Montfort** as part of the HakiOS project.
-Built upon Apple's open-source XNU kernel (`xnu-8796.121.2`), Project Mu UEFI, and Mesa Gallium Freedreno.
+### Maintainers (POCO X6 5G Port)
+- **Montfort**
+- [Jotan](https://github.com/sudo-joaopuser)
+
+### Original Upstream Project
+- The Hack iOS / `oosexgang` team for the pioneering XNU Darwin bring-up on Qualcomm silicon.
+
+Built upon Apple's open-source XNU kernel (`xnu-8796.121.2`), Project Mu / Mu-Silicium UEFI, and Mesa Gallium Freedreno.
