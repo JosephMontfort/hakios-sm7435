@@ -1,0 +1,6 @@
+soc_rsc=0x17a20000
+soc_tlmm=0x0f100000
+soc_spmi=0x0c400000
+soc_cmd_db=0x80860000
+soc_smem=0x80900000
+soc_imem=0x14600000

@@ -1,0 +1,4 @@
+# HakiOS defconfig for the POCO X6 5G (garnet, SM7435-AB, devices/garnet)
+#include common_defconfig
+#include sm7435.config
+#include garnet.config
