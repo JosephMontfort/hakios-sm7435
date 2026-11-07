@@ -82,7 +82,14 @@ Pulls the Adreno 710 GMU/SQE/ZAP firmware (`fw-gpu/`), audio DSP firmware (`fw-a
 
 ---
 
+## Community & Support
+
+- **Updates Channel:** [t.me/garnetglobal](https://t.me/garnetglobal)
+- **Support Group:** [t.me/Garnet_Axion_Support](https://t.me/Garnet_Axion_Support)
+
+---
+
 ## Maintainer & Attribution
 
-Maintained by **JosephMontfort** as part of the HakiOS project.
+Maintained by **Montfort** as part of the HakiOS project.
 Built upon Apple's open-source XNU kernel (`xnu-8796.121.2`), Project Mu UEFI, and Mesa Gallium Freedreno.
