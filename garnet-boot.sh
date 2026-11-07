@@ -163,11 +163,15 @@ boot_system() {
         trap - INT TERM
         wait "$run_pid" 2>/dev/null || true
 
-        # Finalize log file
-        local final_cand
-        final_cand=$(ls -t logs/*-run.log logs/*-run.log.live 2>/dev/null | head -n 1)
-        if [ -n "$final_cand" ] && [ -s "$final_cand" ]; then
-            cp -f "$final_cand" "$logfile" 2>/dev/null
+        # Finalize log file: check logs/last.log, logs/loader.log, or newest live snapshot
+        if [ -s "logs/last.log" ]; then
+            cp -f "logs/last.log" "$logfile" 2>/dev/null
+        else
+            local final_cand
+            final_cand=$(ls -t logs/*-run.log.live logs/*-run.log 2>/dev/null | head -n 1)
+            if [ -n "$final_cand" ] && [ -s "$final_cand" ]; then
+                cp -f "$final_cand" "$logfile" 2>/dev/null
+            fi
         fi
 
         if [ -f "$logfile" ] && [ -s "$logfile" ]; then

@@ -85,8 +85,13 @@ function Boot-System {
         Write-Host "Live log active. Press 'S' to save log and detach." -ForegroundColor Yellow
         Write-Host "Note: Detaching log keeps iOS running. Use Option 5 to return to loader." -ForegroundColor Cyan
 
+        $env:XL_FOLLOW = 1
         $env:XL_CMDLINE = $Args
         & .\xl.ps1 run
+        if (Test-Path 'logs/last.log') {
+            Copy-Item 'logs/last.log' $logfile -Force -ErrorAction SilentlyContinue
+            Write-Host "Log saved: $logfile" -ForegroundColor Green
+        }
     } else {
         $env:XL_CMDLINE = $Args
         & .\xl.ps1 run
