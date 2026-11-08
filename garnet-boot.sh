@@ -29,8 +29,21 @@ RESET=$'\033[0m'
 SEP='============================================================'
 DIV='------------------------------------------------------------'
 
-DEFAULT_ARGS="garnet_touch=1 garnet_buttons=1 garnet_cpufreq=1 bootcpu=7 cpus=8 gpu=1 gl=1 adreno_speed=8 fb_filter=1 cpuload=500 ddr=2 fb_queue=1 touch_lat=1 ui_lite=1 caenv=CA_DISABLE_DIRTY_REGIONS=1"
+DEFAULT_ARGS="garnet_touch=1 garnet_buttons=1 garnet_cpufreq=1 bootcpu=7 cpus=8 gpu=1 gl=1 adreno_speed=6 fb_filter=1 cpuload=500 ddr=2 fb_queue=1 touch_lat=1 ui_lite=1 caenv=CA_DISABLE_DIRTY_REGIONS=1"
 RAMDISK="userland/system.apfs"
+
+check_prerequisites() {
+    if ! command -v python3 >/dev/null 2>&1 && ! command -v python >/dev/null 2>&1; then
+        printf '%berror: Python 3 is required by xl and image tools but is not installed.%b\n' "${RED}" "${RESET}"
+        printf 'Please install Python 3 and rerun this script:\n'
+        if [ -d "/data/data/com.termux" ]; then
+            printf '  pkg install python\n'
+        else
+            printf '  sudo apt install python3  (or your distribution package manager)\n'
+        fi
+        exit 1
+    fi
+}
 
 show_menu() {
     command -v clear >/dev/null && [ -n "${TERM:-}" ] && clear
@@ -40,7 +53,7 @@ show_menu() {
     printf '%bDirectory : %b%s\n' "${CYAN}" "${RESET}" "$PWD"
 
     local kernel=""
-    for k in "$XL_KERNEL" "mach.development.bcm2837" "hakios-kernel" "prebuilt/mach.development.bcm2837" "prebuilt/hakios-kernel"; do
+    for k in "${XL_KERNEL:-}" "mach.development.bcm2837" "hakios-kernel" "prebuilt/mach.development.bcm2837" "prebuilt/hakios-kernel"; do
         if [ -n "$k" ] && [ -f "$k" ]; then
             kernel="$k"
             break
@@ -127,7 +140,7 @@ boot_system() {
     check_loader || return 1
 
     local kernel=""
-    for k in "$XL_KERNEL" "mach.development.bcm2837" "hakios-kernel" "prebuilt/mach.development.bcm2837" "prebuilt/hakios-kernel"; do
+    for k in "${XL_KERNEL:-}" "mach.development.bcm2837" "hakios-kernel" "prebuilt/mach.development.bcm2837" "prebuilt/hakios-kernel"; do
         if [ -n "$k" ] && [ -f "$k" ]; then
             kernel="$k"
             break
@@ -201,16 +214,17 @@ boot_system() {
 
         if [ -f "$logfile" ] && [ -s "$logfile" ]; then
             printf '%bLog saved: %s (%s)%b\n' "${GREEN}" "$logfile" "$(du -h "$logfile" 2>/dev/null | cut -f1)" "${RESET}"
-            # Auto-export to Android Downloads storage if in Termux
             if [ -d "/storage/emulated/0/Download" ]; then
                 cp -f "$logfile" "/storage/emulated/0/Download/$(basename "$logfile")" 2>/dev/null || true
-                printf '%bExported to: /storage/emulated/0/Download/%s%b\n' "${CYAN}" "$(basename "$logfile")" "${RESET}"
+                printf '%bExported copy: %s%b\n' "${CYAN}" "/storage/emulated/0/Download/$(basename "$logfile")" "${RESET}"
             fi
         fi
     else
         XL_CMDLINE="$args" ./xl run
     fi
 }
+
+check_prerequisites
 
 while true; do
     show_menu
