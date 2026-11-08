@@ -14,8 +14,21 @@ function Show-Menu {
     Write-Host $SEP -ForegroundColor Cyan
     Write-Host "Directory : $((Get-Location).Path)" -ForegroundColor Cyan
     
-    $kernel = if ($env:XL_KERNEL) { $env:XL_KERNEL } else { 'mach.development.bcm2837' }
-    if (-not (Test-Path $kernel) -and (Test-Path 'prebuilt/mach.development.bcm2837')) {
+    $candidates = @(
+        $env:XL_KERNEL,
+        'mach.development.bcm2837',
+        'hakios-kernel',
+        'prebuilt/mach.development.bcm2837',
+        'prebuilt/hakios-kernel'
+    )
+    $kernel = $null
+    foreach ($c in $candidates) {
+        if ($c -and (Test-Path $c)) {
+            $kernel = $c
+            break
+        }
+    }
+    if (-not $kernel) {
         $kernel = 'prebuilt/mach.development.bcm2837'
     }
     if (Test-Path $kernel) {
@@ -75,6 +88,25 @@ function Boot-System {
     param([string]$Args, [bool]$WithLog)
 
     if (-not (Check-Loader)) { return }
+
+    $candidates = @(
+        $env:XL_KERNEL,
+        'mach.development.bcm2837',
+        'hakios-kernel',
+        'prebuilt/mach.development.bcm2837',
+        'prebuilt/hakios-kernel'
+    )
+    $kernel = $null
+    foreach ($c in $candidates) {
+        if ($c -and (Test-Path $c)) {
+            $kernel = $c
+            break
+        }
+    }
+    if ($kernel) {
+        $env:XL_KERNEL = $kernel
+    }
+
     Write-Host "Booting HakiOS with args: $Args" -ForegroundColor Cyan
     $env:XL_SECS = 900
 

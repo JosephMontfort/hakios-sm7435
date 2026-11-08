@@ -39,8 +39,14 @@ show_menu() {
     printf '%b\n' "${CYAN}${SEP}${RESET}"
     printf '%bDirectory : %b%s\n' "${CYAN}" "${RESET}" "$PWD"
 
-    local kernel="${XL_KERNEL:-mach.development.bcm2837}"
-    [ ! -f "$kernel" ] && [ -f "prebuilt/mach.development.bcm2837" ] && kernel="prebuilt/mach.development.bcm2837"
+    local kernel=""
+    for k in "$XL_KERNEL" "mach.development.bcm2837" "hakios-kernel" "prebuilt/mach.development.bcm2837" "prebuilt/hakios-kernel"; do
+        if [ -n "$k" ] && [ -f "$k" ]; then
+            kernel="$k"
+            break
+        fi
+    done
+    [ -z "$kernel" ] && kernel="${XL_KERNEL:-prebuilt/mach.development.bcm2837}"
     if [ -f "$kernel" ]; then
         printf '%bKernel    : %b%s (%b✓ Found%b)\n' "${CYAN}" "${RESET}" "$kernel" "${GREEN}" "${RESET}"
     else
@@ -119,6 +125,25 @@ boot_system() {
 
     need_xl || return 1
     check_loader || return 1
+
+    local kernel=""
+    for k in "$XL_KERNEL" "mach.development.bcm2837" "hakios-kernel" "prebuilt/mach.development.bcm2837" "prebuilt/hakios-kernel"; do
+        if [ -n "$k" ] && [ -f "$k" ]; then
+            kernel="$k"
+            break
+        fi
+    done
+    if [ -n "$kernel" ]; then
+        export XL_KERNEL="$kernel"
+    fi
+
+    local phone_rec="${XDG_RUNTIME_DIR:-/tmp}/darwin-hakios-phone.ramdisk"
+    if [ ! -f "$phone_rec" ] || [ ! -s "$phone_rec" ]; then
+        if [ ! -f "$RAMDISK" ]; then
+            printf '%b[WARN] No resident system ramdisk uploaded and userland/system.apfs not found!%b\n' "${YELLOW}" "${RESET}"
+            printf '%b       Kernel may panic (launchd failed, errno 2) if root filesystem is missing.%b\n' "${YELLOW}" "${RESET}"
+        fi
+    fi
 
     printf '%bBooting HakiOS with args: %s%b\n' "${CYAN}" "$args" "${RESET}"
     : "${XL_SECS:=900}"
