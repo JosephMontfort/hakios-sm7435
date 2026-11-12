@@ -4,7 +4,7 @@ Set-Location $PSScriptRoot
 
 $SEP = '============================================================'
 $DIV = '------------------------------------------------------------'
-$DEFAULT_ARGS = 'garnet_touch=1 garnet_buttons=1 garnet_cpufreq=1 bootcpu=7 cpus=8 gpu=1 gl=1 adreno_speed=6 fb_filter=1 cpuload=500 ddr=2 fb_queue=1 touch_lat=1 ui_lite=1 caenv=CA_DISABLE_DIRTY_REGIONS=1'
+$DEFAULT_ARGS = 'garnet_touch=1 garnet_buttons=1 garnet_cpufreq=1 bootcpu=7 cpus=8 gpu=1 gl=1 adreno_speed=6 fb_filter=1 cpuload=500 ddr=2 fb_queue=1 touch_lat=1 ui_lite=1 caenv=CA_DISABLE_DIRTY_REGIONS=1 gpu_recover=1'
 $RAMDISK = 'userland/system.apfs'
 
 function Show-Menu {
