@@ -5,6 +5,7 @@ Set-Location $PSScriptRoot
 $SEP = '============================================================'
 $DIV = '------------------------------------------------------------'
 $DEFAULT_ARGS = 'garnet_touch=1 garnet_buttons=1 garnet_cpufreq=1 bootcpu=7 cpus=8 gpu=1 gl=1 adreno_speed=6 fb_filter=1 cpuload=500 ddr=2 fb_queue=1 touch_lat=1 ui_lite=1 caenv=CA_DISABLE_DIRTY_REGIONS=1 gpu_recover=1'
+$METAL_ARGS = "$DEFAULT_ARGS metal=1 metal_all=1 ca_metallib=/redwood/share/QuartzCore-default.metallib"
 $RAMDISK = 'userland/system.apfs'
 
 function Show-Menu {
@@ -49,6 +50,7 @@ function Show-Menu {
     Write-Host "  3) Boot HakiOS (Verbose Log)" -ForegroundColor Green
     Write-Host "  4) Boot HakiOS (Custom Boot Arguments)" -ForegroundColor Green
     Write-Host "  5) Return to XNU Loader (Stop current iOS session)" -ForegroundColor Green
+    Write-Host "  6) Boot HakiOS with Metal (Verbose Log)" -ForegroundColor Green
     Write-Host "  0) Exit" -ForegroundColor Green
     Write-Host $SEP -ForegroundColor Cyan
 }
@@ -132,7 +134,7 @@ function Boot-System {
 
 while ($true) {
     Show-Menu
-    $choice = Read-Host "Select option [0-5]"
+    $choice = Read-Host "Select option [0-6]"
     switch ($choice) {
         '1' { Push-Ramdisk }
         '2' { Boot-System $DEFAULT_ARGS $false }
@@ -143,6 +145,7 @@ while ($true) {
             Boot-System $custom $true
         }
         '5' { Return-ToLoader }
+        '6' { Boot-System "-v $METAL_ARGS" $true }
         '0' { Write-Host "Exiting."; exit 0 }
         default { Write-Host "Invalid option." -ForegroundColor Red }
     }

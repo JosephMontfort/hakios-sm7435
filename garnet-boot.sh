@@ -30,6 +30,10 @@ SEP='============================================================'
 DIV='------------------------------------------------------------'
 
 DEFAULT_ARGS="garnet_touch=1 garnet_buttons=1 garnet_cpufreq=1 bootcpu=7 cpus=8 gpu=1 gl=1 adreno_speed=6 fb_filter=1 cpuload=500 ddr=2 fb_queue=1 touch_lat=1 ui_lite=1 caenv=CA_DISABLE_DIRTY_REGIONS=1 gpu_recover=1"
+# Metal: the window server on hakios-metal's plug-in (/redwood/lib/RedwoodMetal.bundle, built by CI into root.apfs)
+# with CoreAnimation's merged shader library. FD_FBFETCH_FLUSH=1 (in caenv) brings back the GL path's old per-draw
+# flush if the GMEM window ever shows tile garbage again.
+METAL_ARGS="$DEFAULT_ARGS metal=1 metal_all=1 ca_metallib=/redwood/share/QuartzCore-default.metallib"
 RAMDISK="userland/system.apfs"
 
 check_prerequisites() {
@@ -80,6 +84,7 @@ show_menu() {
     printf '  %b3)%b Boot HakiOS (Verbose Log)\n' "${GREEN}" "${RESET}"
     printf '  %b4)%b Boot HakiOS (Custom Boot Arguments)\n' "${GREEN}" "${RESET}"
     printf '  %b5)%b Return to XNU Loader (Stop current iOS session)\n' "${GREEN}" "${RESET}"
+    printf '  %b6)%b Boot HakiOS with Metal (Verbose Log)\n' "${GREEN}" "${RESET}"
     printf '  %b0)%b Exit\n' "${GREEN}" "${RESET}"
     printf '%b\n' "${CYAN}${SEP}${RESET}"
 }
@@ -228,7 +233,7 @@ check_prerequisites
 
 while true; do
     show_menu
-    read -r -p "$(printf '%bSelect option [0-5]: %b' "${YELLOW}" "${RESET}")" choice || exit 0
+    read -r -p "$(printf '%bSelect option [0-6]: %b' "${YELLOW}" "${RESET}")" choice || exit 0
     case "$choice" in
         1) push_ramdisk ;;
         2) boot_system "$DEFAULT_ARGS" 0 ;;
@@ -239,6 +244,7 @@ while true; do
             boot_system "$custom" 1
             ;;
         5) return_to_loader ;;
+        6) boot_system "-v $METAL_ARGS" 1 ;;
         0) echo "Exiting."; exit 0 ;;
         *) printf '%bInvalid selection.%b\n' "${RED}" "${RESET}" ;;
     esac
