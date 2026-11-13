@@ -34,6 +34,13 @@ DEFAULT_ARGS="garnet_touch=1 garnet_buttons=1 garnet_cpufreq=1 bootcpu=7 cpus=8 
 # with CoreAnimation's merged shader library. FD_FBFETCH_FLUSH=1 (in caenv) brings back the GL path's old per-draw
 # flush if the GMEM window ever shows tile garbage again.
 METAL_ARGS="$DEFAULT_ARGS metal=1 metal_all=1 ca_metallib=/redwood/share/QuartzCore-default.metallib"
+# Metal as upstream's tools/metal-run.sh runs it (docs/reference/metal-measurements.md): the wallpaper one still picture,
+# the window server's command buffers recorded on hakios-metal's own thread, six cores scaling a frame onto the panel at
+# its 120 Hz (the driver's default is 60), SpringBoard's animations asking for 80..120. fb_filter=1 left out: measured
+# upstream as no help and more shares late. The boot line holds 607 characters: these replace, they are not added to.
+METAL_PERF="garnet_touch=1 garnet_buttons=1 garnet_cpufreq=1 bootcpu=7 cpus=8 gpu=1 gl=1 adreno_speed=6 ddr=2 fb_queue=1 ui_lite=1 caenv=CA_DISABLE_DIRTY_REGIONS=1 gpu_recover=1 metal=1 metal_all=1 ca_metallib=/redwood/share/QuartzCore-default.metallib wallpaper_freeze=1 metal_defer=1 fb_threads=6 fb_hz=120 anim_max=1"
+# the verbose one measures: frame lines, CPU load, each GPU submission's time, the plug-in's counters every 5 s
+METAL_VERBOSE="-v $METAL_PERF touch_lat=1 cpuload=500 gpu_log=1 metal_fps=1"
 RAMDISK="userland/system.apfs"
 
 check_prerequisites() {
@@ -85,6 +92,9 @@ show_menu() {
     printf '  %b4)%b Boot HakiOS (Custom Boot Arguments)\n' "${GREEN}" "${RESET}"
     printf '  %b5)%b Return to XNU Loader (Stop current iOS session)\n' "${GREEN}" "${RESET}"
     printf '  %b6)%b Boot HakiOS with Metal (Verbose Log)\n' "${GREEN}" "${RESET}"
+    printf '  %b7)%b Boot HakiOS with Metal (no verbose, fast)\n' "${GREEN}" "${RESET}"
+    printf '  %b8)%b Boot HakiOS with Metal (no verbose, fast, 750x1624 render: fbscale=2)\n' "${GREEN}" "${RESET}"
+    printf '  %b9)%b Boot HakiOS with Metal (old Metal args, Verbose Log)\n' "${GREEN}" "${RESET}"
     printf '  %b0)%b Exit\n' "${GREEN}" "${RESET}"
     printf '%b\n' "${CYAN}${SEP}${RESET}"
 }
@@ -175,25 +185,42 @@ boot_system() {
         printf '%bLive log active. Press %bS%b to save log and detach.%b\n' "${YELLOW}" "${BOLD}" "${YELLOW}" "${RESET}"
         printf '%bNote: Detaching log keeps iOS running. Use Option 5 to return to loader.%b\n' "${CYAN}" "${RESET}"
 
-        local latest_full="logs/$stamp-run.log"
-        XL_FOLLOW=1 XL_CMDLINE="$args" ./xl run > "$latest_full" 2>&1 &
+        # xl's own log of this run is logs/HHMMSS-run.log(.live); this marker tells it from older runs'
+        local marker="logs/.boot-$stamp" latest_full="logs/xl-$stamp.out"
+        : > "$marker"
+        command -v termux-wake-lock >/dev/null 2>&1 && termux-wake-lock 2>/dev/null && local woke=1
+        XL_FOLLOW=${XL_FOLLOW:-5} XL_CMDLINE="$args" ./xl run > "$latest_full" 2>&1 &
         run_pid=$!
+
+        this_run_log() { # the newest log of this run: the final one if xl wrote it, else the newest live snapshot
+            find logs -maxdepth 1 \( -name '[0-9]*-run.log' -o -name '[0-9]*-run.log.live' \) -newer "$marker" -size +0 \
+                -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -n 1 | cut -d' ' -f2-
+        }
 
         trap 'kill "$run_pid" 2>/dev/null' INT TERM
         # Flush lingering input
         while read -t 0.05 -n 1000 _; do :; done 2>/dev/null
 
+        local shown=0 n
         while kill -0 "$run_pid" 2>/dev/null; do
             local latest_live
-            latest_live=$(ls -t logs/*-run.log.live 2>/dev/null | head -n 1)
-            if [ -n "$latest_live" ] && [ -s "$latest_live" ]; then
-                cp -f "$latest_live" "$logfile" 2>/dev/null
+            latest_live=$(this_run_log)
+            [ -n "$latest_live" ] && cp -f "$latest_live" "$logfile" 2>/dev/null
+            # xl's fetch lines (sizes, failures) as they come
+            n=$(wc -l < "$latest_full" 2>/dev/null || echo 0)
+            if [ "$n" -gt "$shown" ]; then
+                sed -n "$((shown + 1)),${n}p" "$latest_full" | grep -E 'FAILED|xl:' | sed 's/^/  /'
+                shown=$n
             fi
             if [ -t 0 ]; then
                 key=""
                 if read -t 1 -n 1 -s key 2>/dev/null; then
                     if [ "$key" = "s" ] || [ "$key" = "S" ]; then
-                        printf '\n%bDetaching from log stream... iOS continues running on device.%b\n' "${GREEN}" "${RESET}"
+                        printf '\n%bFetching the whole log once more, then detaching (iOS keeps running)...%b\n' "${GREEN}" "${RESET}"
+                        kill -USR1 "$run_pid" 2>/dev/null
+                        # xl finishes its fetch and leaves; at most 3 minutes, then it is killed
+                        local w=0
+                        while kill -0 "$run_pid" 2>/dev/null && [ $w -lt 180 ]; do sleep 1; w=$((w + 1)); done
                         kill "$run_pid" 2>/dev/null
                         wait "$run_pid" 2>/dev/null || true
                         break
@@ -205,17 +232,14 @@ boot_system() {
         done
         trap - INT TERM
         wait "$run_pid" 2>/dev/null || true
+        [ -n "${woke:-}" ] && termux-wake-unlock 2>/dev/null
 
-        # Finalize log file: check logs/last.log, logs/loader.log, or newest live snapshot
-        if [ -s "logs/last.log" ]; then
-            cp -f "logs/last.log" "$logfile" 2>/dev/null
-        else
-            local final_cand
-            final_cand=$(ls -t logs/*-run.log.live logs/*-run.log 2>/dev/null | head -n 1)
-            if [ -n "$final_cand" ] && [ -s "$final_cand" ]; then
-                cp -f "$final_cand" "$logfile" 2>/dev/null
-            fi
-        fi
+        # Finalize: this run's own log, never logs/last.log (that can be an older run's)
+        local final_cand
+        final_cand=$(this_run_log)
+        [ -n "$final_cand" ] && cp -f "$final_cand" "$logfile" 2>/dev/null
+        grep -E 'FAILED|stopped by|\[logs/' "$latest_full" 2>/dev/null | tail -n 3
+        rm -f "$marker"
 
         if [ -f "$logfile" ] && [ -s "$logfile" ]; then
             printf '%bLog saved: %s (%s)%b\n' "${GREEN}" "$logfile" "$(du -h "$logfile" 2>/dev/null | cut -f1)" "${RESET}"
@@ -244,7 +268,10 @@ while true; do
             boot_system "$custom" 1
             ;;
         5) return_to_loader ;;
-        6) boot_system "-v $METAL_ARGS" 1 ;;
+        6) boot_system "$METAL_VERBOSE" 1 ;;
+        7) boot_system "$METAL_PERF" 0 ;;
+        8) boot_system "$METAL_PERF fbscale=2" 0 ;;
+        9) boot_system "-v $METAL_ARGS" 1 ;;
         0) echo "Exiting."; exit 0 ;;
         *) printf '%bInvalid selection.%b\n' "${RED}" "${RESET}" ;;
     esac

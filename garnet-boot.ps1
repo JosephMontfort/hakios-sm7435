@@ -6,6 +6,9 @@ $SEP = '============================================================'
 $DIV = '------------------------------------------------------------'
 $DEFAULT_ARGS = 'garnet_touch=1 garnet_buttons=1 garnet_cpufreq=1 bootcpu=7 cpus=8 gpu=1 gl=1 adreno_speed=6 fb_filter=1 cpuload=500 ddr=2 fb_queue=1 touch_lat=1 ui_lite=1 caenv=CA_DISABLE_DIRTY_REGIONS=1 gpu_recover=1'
 $METAL_ARGS = "$DEFAULT_ARGS metal=1 metal_all=1 ca_metallib=/redwood/share/QuartzCore-default.metallib"
+# Metal as upstream's tools/metal-run.sh runs it (see garnet-boot.sh): fb_filter=1 out, the proven arguments in.
+$METAL_PERF = 'garnet_touch=1 garnet_buttons=1 garnet_cpufreq=1 bootcpu=7 cpus=8 gpu=1 gl=1 adreno_speed=6 ddr=2 fb_queue=1 ui_lite=1 caenv=CA_DISABLE_DIRTY_REGIONS=1 gpu_recover=1 metal=1 metal_all=1 ca_metallib=/redwood/share/QuartzCore-default.metallib wallpaper_freeze=1 metal_defer=1 fb_threads=6 fb_hz=120 anim_max=1'
+$METAL_VERBOSE = "-v $METAL_PERF touch_lat=1 cpuload=500 gpu_log=1 metal_fps=1"
 $RAMDISK = 'userland/system.apfs'
 
 function Show-Menu {
@@ -51,6 +54,9 @@ function Show-Menu {
     Write-Host "  4) Boot HakiOS (Custom Boot Arguments)" -ForegroundColor Green
     Write-Host "  5) Return to XNU Loader (Stop current iOS session)" -ForegroundColor Green
     Write-Host "  6) Boot HakiOS with Metal (Verbose Log)" -ForegroundColor Green
+    Write-Host "  7) Boot HakiOS with Metal (no verbose, fast)" -ForegroundColor Green
+    Write-Host "  8) Boot HakiOS with Metal (no verbose, fast, 750x1624 render: fbscale=2)" -ForegroundColor Green
+    Write-Host "  9) Boot HakiOS with Metal (old Metal args, Verbose Log)" -ForegroundColor Green
     Write-Host "  0) Exit" -ForegroundColor Green
     Write-Host $SEP -ForegroundColor Cyan
 }
@@ -119,12 +125,19 @@ function Boot-System {
         Write-Host "Live log active. Press 'S' to save log and detach." -ForegroundColor Yellow
         Write-Host "Note: Detaching log keeps iOS running. Use Option 5 to return to loader." -ForegroundColor Cyan
 
-        $env:XL_FOLLOW = 1
+        $env:XL_FOLLOW = 5
         $env:XL_CMDLINE = $Args
+        $started = Get-Date
         & .\xl.ps1 run
-        if (Test-Path 'logs/last.log') {
-            Copy-Item 'logs/last.log' $logfile -Force -ErrorAction SilentlyContinue
-            Write-Host "Log saved: $logfile" -ForegroundColor Green
+        # this run's own log (never an older run's logs/last.log): the newest written since it started
+        $mine = Get-ChildItem 'logs' -File -ErrorAction SilentlyContinue |
+            Where-Object { $_.Name -match '^\d+-run\.log(\.live)?$' -and $_.LastWriteTime -ge $started -and $_.Length -gt 0 } |
+            Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        if ($mine) {
+            Copy-Item $mine.FullName $logfile -Force -ErrorAction SilentlyContinue
+            Write-Host "Log saved: $logfile ($([int]($mine.Length / 1KB)) KiB)" -ForegroundColor Green
+        } else {
+            Write-Host "No log of this run was fetched." -ForegroundColor Yellow
         }
     } else {
         $env:XL_CMDLINE = $Args
@@ -145,7 +158,10 @@ while ($true) {
             Boot-System $custom $true
         }
         '5' { Return-ToLoader }
-        '6' { Boot-System "-v $METAL_ARGS" $true }
+        '6' { Boot-System $METAL_VERBOSE $true }
+        '7' { Boot-System $METAL_PERF $false }
+        '8' { Boot-System "$METAL_PERF fbscale=2" $false }
+        '9' { Boot-System "-v $METAL_ARGS" $true }
         '0' { Write-Host "Exiting."; exit 0 }
         default { Write-Host "Invalid option." -ForegroundColor Red }
     }

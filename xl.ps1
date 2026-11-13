@@ -205,14 +205,22 @@ function Invoke-Enter {
 }
 
 function Fetch-Log {
-    param([string]$File)
-    if (Test-Path $File) { Remove-Item $File -Force }
-    $null = Invoke-Fastboot @('get_staged', $File) -TimeoutSec 20
-    if (-not (Test-Path $File)) { return $false }
-    if ((Get-Item $File).Length -eq 0) { return $false }
-    $bytes = [System.IO.File]::ReadAllBytes($File)
+    # into <file>.part, moved over <file> only when whole: a failed or cut fetch never takes the last good log with it.
+    # The time allowed grows with the log: 20 s and 10 s a megabyte.
+    param([string]$File, [int]$TimeoutSec = 0)
+    if ($TimeoutSec -le 0) {
+        $mb = 0; if (Test-Path $File) { $mb = [int]((Get-Item $File).Length / 1MB) }
+        $TimeoutSec = 20 + 10 * $mb
+    }
+    $part = "$File.part"
+    if (Test-Path $part) { Remove-Item $part -Force }
+    $null = Invoke-Fastboot @('get_staged', $part) -TimeoutSec $TimeoutSec
+    if (-not (Test-Path $part)) { return $false }
+    if ((Get-Item $part).Length -eq 0) { return $false }
+    $bytes = [System.IO.File]::ReadAllBytes((Resolve-Path $part))
     $clean = $bytes | Where-Object { $_ -ne 0 }
-    [System.IO.File]::WriteAllBytes($File, [byte[]]$clean)
+    [System.IO.File]::WriteAllBytes((Join-Path (Get-Location) $File), [byte[]]$clean)
+    Remove-Item $part -Force
     return $true
 }
 
@@ -308,6 +316,7 @@ function Invoke-Run {
         $deadline = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds() + $secs + 100
         $followed = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
         $followedN = 0
+        $followFail = 0
         while ($true) {
             $rOut = Invoke-Fastboot @('getvar', 'result') -TimeoutSec 15
             $result = Get-ResultLine $rOut
@@ -315,11 +324,33 @@ function Invoke-Run {
             if ([DateTimeOffset]::UtcNow.ToUnixTimeSeconds() -ge $deadline) { $result = ''; break }
             if ($env:XL_FOLLOW -and (([DateTimeOffset]::UtcNow.ToUnixTimeSeconds() - $followed) -ge [int]$env:XL_FOLLOW)) {
                 $followed = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
+                $followedN++
+                $t0 = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds()
                 $logOut = Invoke-Fastboot @('oem', 'log')
-                if ($logOut -match 'OKAY') {
-                    $null = Fetch-Log "$log.live"
-                    if ($env:XL_FOLLOW_KEEP) { $followedN++; Copy-Item "$log.live" "$log.live.$followedN" -Force -ErrorAction SilentlyContinue }
+                $ok = $false
+                if ($logOut -match 'OKAY') { $ok = Fetch-Log "$log.live" }
+                $dt = [DateTimeOffset]::UtcNow.ToUnixTimeSeconds() - $t0
+                if ($ok) {
+                    $followFail = 0
+                    if ($env:XL_FOLLOW_KEEP) { Copy-Item "$log.live" "$log.live.$followedN" -Force -ErrorAction SilentlyContinue }
+                    Write-Host ("xl: [log $followedN] {0} KiB in $dt s" -f [int]((Get-Item "$log.live").Length / 1KB)) -ForegroundColor DarkGray
+                } else {
+                    $followFail++
+                    Write-Host "xl: [log $followedN] FAILED after $dt s, $followFail in a row: USB, the PC asleep, or the loader not answering" -ForegroundColor Yellow
                 }
+            }
+            # S: one last whole fetch, then leave the run going on the phone
+            $stop = $false
+            try { while ([Console]::KeyAvailable) { $k = [Console]::ReadKey($true); if ($k.Key -eq 'S') { $stop = $true } } } catch {}
+            if ($stop) {
+                Write-Host "xl: S pressed: fetching the whole log once more" -ForegroundColor Green
+                if ((Invoke-Fastboot @('oem', 'log')) -match 'OKAY') { $null = Fetch-Log "$log.live" 120 }
+                if (Test-Path "$log.live") {
+                    Copy-Item "$log.live" $log -Force
+                    Copy-Item "$log.live" 'logs/last.log' -Force
+                }
+                Write-Host "xl: stopped by the user  [$log]"
+                return
             }
             Start-Sleep -Seconds 2
         }
