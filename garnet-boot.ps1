@@ -9,8 +9,11 @@ $METAL_ARGS = "$DEFAULT_ARGS metal=1 metal_all=1 ca_metallib=/redwood/share/Quar
 # Metal as upstream's tools/metal-run.sh runs it (see garnet-boot.sh): fb_filter=1 out, the proven arguments in.
 # metal_defer=1 only in $METAL_DEFER (option d): before the plug-in's fix it showed frames the GPU had not drawn (black strips)
 $METAL_PERF = 'garnet_touch=1 garnet_buttons=1 garnet_cpufreq=1 bootcpu=7 cpus=8 gpu=1 gl=1 adreno_speed=6 ddr=2 fb_queue=1 ui_lite=1 caenv=CA_DISABLE_DIRTY_REGIONS=1 gpu_recover=1 metal=1 metal_all=1 ca_metallib=/redwood/share/QuartzCore-default.metallib wallpaper_freeze=1 fb_threads=6 fb_hz=120 anim_max=1'
-# verbose: measured, plus on trial the panel's DSI interface (fb_intf: frames written behind the scan, its rate measured) and the GPU at 940 MHz
-$METAL_VERBOSE = "-v $($METAL_PERF -replace 'adreno_speed=6','adreno_speed=8') fb_intf=0x0ae36000 fb_measure=1 touch_lat=1 cpuload=500 gpu_log=1 metal_fps=1"
+# verbose: on trial the panel's DSI interface (fb_intf: frames written behind the scan, its rate measured) and the GPU at 940 MHz
+# the same logging with or without -v (garnet-boot.sh: METAL_LOG): -v only picks the log or the Apple logo on the panel
+$METAL_LOG = 'fb_measure=1 touch_lat=1 cpuload=500 gpu_log=1 metal_fps=1'
+$METAL_PERF = "$METAL_PERF $METAL_LOG"
+$METAL_VERBOSE = "-v $($METAL_PERF -replace 'adreno_speed=6','adreno_speed=8') fb_intf=0x0ae36000"
 $METAL_DEFER = "$METAL_PERF metal_defer=1"
 $RAMDISK = 'userland/system.apfs'
 

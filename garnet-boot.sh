@@ -40,11 +40,15 @@ METAL_ARGS="$DEFAULT_ARGS metal=1 metal_all=1 ca_metallib=/redwood/share/QuartzC
 # plug-in's fix it let the panel show frames the GPU had not drawn yet (black strips, a missing first Apple logo); it
 # is only in METAL_DEFER, to compare. The boot line holds 607 characters: these replace, they are not added to.
 METAL_PERF="garnet_touch=1 garnet_buttons=1 garnet_cpufreq=1 bootcpu=7 cpus=8 gpu=1 gl=1 adreno_speed=6 ddr=2 fb_queue=1 ui_lite=1 caenv=CA_DISABLE_DIRTY_REGIONS=1 gpu_recover=1 metal=1 metal_all=1 ca_metallib=/redwood/share/QuartzCore-default.metallib wallpaper_freeze=1 fb_threads=6 fb_hz=120 anim_max=1"
-# the verbose one measures: frame lines, CPU load, each GPU submission's time, the plug-in's counters every 5 s. Also on
-# trial there: the panel's DSI interface (INTF_1 = MDSS 0xae00000 + 0x36000, read from garnet's device tree) so frames
-# are written behind the panel's scan (fb_beam, on by default once fb_intf is known) and its real rate is measured once
-# (fb_measure, a minute in); and the GPU at 940 MHz (adreno_speed=8) instead of 816.
-METAL_VERBOSE="-v ${METAL_PERF/adreno_speed=6/adreno_speed=8} fb_intf=0x0ae36000 fb_measure=1 touch_lat=1 cpuload=500 gpu_log=1 metal_fps=1"
+# what gets logged is the same with or without -v: -v only decides whether the panel shows the log or the Apple logo.
+# Every Metal option takes these: frame lines, CPU load, each GPU submission's time, touch latency, the plug-in's
+# counters every 5 s (cpuload=500 and touch_lat=1 were in DEFAULT_ARGS already, so options 2 and 3 log alike too).
+METAL_LOG="fb_measure=1 touch_lat=1 cpuload=500 gpu_log=1 metal_fps=1"
+METAL_PERF="$METAL_PERF $METAL_LOG"
+# on trial in the verbose one only: the panel's DSI interface (INTF_1 = MDSS 0xae00000 + 0x36000, read from garnet's
+# device tree) so frames are written behind the panel's scan (fb_beam, on by default once fb_intf is known) and its real
+# rate is measured once (fb_measure, a minute in); and the GPU at 940 MHz (adreno_speed=8) instead of 816.
+METAL_VERBOSE="-v ${METAL_PERF/adreno_speed=6/adreno_speed=8} fb_intf=0x0ae36000"
 # the fast set with the window server's command buffers recorded on hakios-metal's own thread (needs the fixed plug-in)
 METAL_DEFER="$METAL_PERF metal_defer=1"
 RAMDISK="userland/system.apfs"
