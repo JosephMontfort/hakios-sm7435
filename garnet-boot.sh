@@ -35,12 +35,18 @@ DEFAULT_ARGS="garnet_touch=1 garnet_buttons=1 garnet_cpufreq=1 bootcpu=7 cpus=8 
 # flush if the GMEM window ever shows tile garbage again.
 METAL_ARGS="$DEFAULT_ARGS metal=1 metal_all=1 ca_metallib=/redwood/share/QuartzCore-default.metallib"
 # Metal as upstream's tools/metal-run.sh runs it (docs/reference/metal-measurements.md): the wallpaper one still picture,
-# the window server's command buffers recorded on hakios-metal's own thread, six cores scaling a frame onto the panel at
-# its 120 Hz (the driver's default is 60), SpringBoard's animations asking for 80..120. fb_filter=1 left out: measured
-# upstream as no help and more shares late. The boot line holds 607 characters: these replace, they are not added to.
-METAL_PERF="garnet_touch=1 garnet_buttons=1 garnet_cpufreq=1 bootcpu=7 cpus=8 gpu=1 gl=1 adreno_speed=6 ddr=2 fb_queue=1 ui_lite=1 caenv=CA_DISABLE_DIRTY_REGIONS=1 gpu_recover=1 metal=1 metal_all=1 ca_metallib=/redwood/share/QuartzCore-default.metallib wallpaper_freeze=1 metal_defer=1 fb_threads=6 fb_hz=120 anim_max=1"
-# the verbose one measures: frame lines, CPU load, each GPU submission's time, the plug-in's counters every 5 s
-METAL_VERBOSE="-v $METAL_PERF touch_lat=1 cpuload=500 gpu_log=1 metal_fps=1"
+# six cores scaling a frame onto the panel at its 120 Hz (the driver's default is 60), SpringBoard's animations asking
+# for 80..120. fb_filter=1 left out: measured upstream as no help. metal_defer=1 left out of the default sets: before the
+# plug-in's fix it let the panel show frames the GPU had not drawn yet (black strips, a missing first Apple logo); it
+# is only in METAL_DEFER, to compare. The boot line holds 607 characters: these replace, they are not added to.
+METAL_PERF="garnet_touch=1 garnet_buttons=1 garnet_cpufreq=1 bootcpu=7 cpus=8 gpu=1 gl=1 adreno_speed=6 ddr=2 fb_queue=1 ui_lite=1 caenv=CA_DISABLE_DIRTY_REGIONS=1 gpu_recover=1 metal=1 metal_all=1 ca_metallib=/redwood/share/QuartzCore-default.metallib wallpaper_freeze=1 fb_threads=6 fb_hz=120 anim_max=1"
+# the verbose one measures: frame lines, CPU load, each GPU submission's time, the plug-in's counters every 5 s. Also on
+# trial there: the panel's DSI interface (INTF_1 = MDSS 0xae00000 + 0x36000, read from garnet's device tree) so frames
+# are written behind the panel's scan (fb_beam, on by default once fb_intf is known) and its real rate is measured once
+# (fb_measure, a minute in); and the GPU at 940 MHz (adreno_speed=8) instead of 816.
+METAL_VERBOSE="-v ${METAL_PERF/adreno_speed=6/adreno_speed=8} fb_intf=0x0ae36000 fb_measure=1 touch_lat=1 cpuload=500 gpu_log=1 metal_fps=1"
+# the fast set with the window server's command buffers recorded on hakios-metal's own thread (needs the fixed plug-in)
+METAL_DEFER="$METAL_PERF metal_defer=1"
 RAMDISK="userland/system.apfs"
 
 check_prerequisites() {
@@ -86,6 +92,7 @@ show_menu() {
     fi
 
     printf '%b\n' "${CYAN}${DIV}${RESET}"
+    printf '%bEvery boot follows the log: press S to save it and detach.%b\n' "${CYAN}" "${RESET}"
     printf '  %b1)%b Push System Ramdisk (system.apfs)\n' "${GREEN}" "${RESET}"
     printf '  %b2)%b Boot HakiOS (Release)\n' "${GREEN}" "${RESET}"
     printf '  %b3)%b Boot HakiOS (Verbose Log)\n' "${GREEN}" "${RESET}"
@@ -95,6 +102,7 @@ show_menu() {
     printf '  %b7)%b Boot HakiOS with Metal (no verbose, fast)\n' "${GREEN}" "${RESET}"
     printf '  %b8)%b Boot HakiOS with Metal (no verbose, fast, 750x1624 render: fbscale=2)\n' "${GREEN}" "${RESET}"
     printf '  %b9)%b Boot HakiOS with Metal (old Metal args, Verbose Log)\n' "${GREEN}" "${RESET}"
+    printf '  %bd)%b Boot HakiOS with Metal (fast, metal_defer=1: to compare against 7)\n' "${GREEN}" "${RESET}"
     printf '  %b0)%b Exit\n' "${GREEN}" "${RESET}"
     printf '%b\n' "${CYAN}${SEP}${RESET}"
 }
@@ -148,7 +156,6 @@ return_to_loader() {
 
 boot_system() {
     local args="$1"
-    local with_log="$2"
     local stamp logfile run_pid key
 
     need_xl || return 1
@@ -177,7 +184,7 @@ boot_system() {
     : "${XL_SECS:=900}"
     export XL_SECS
 
-    if [ "$with_log" = "1" ]; then
+    {
         mkdir -p logs
         stamp="$(date +%Y%m%d-%H%M%S)"
         logfile="logs/garnet-boot-$stamp.txt"
@@ -248,30 +255,29 @@ boot_system() {
                 printf '%bExported copy: %s%b\n' "${CYAN}" "/storage/emulated/0/Download/$(basename "$logfile")" "${RESET}"
             fi
         fi
-    else
-        XL_CMDLINE="$args" ./xl run
-    fi
+    }
 }
 
 check_prerequisites
 
 while true; do
     show_menu
-    read -r -p "$(printf '%bSelect option [0-6]: %b' "${YELLOW}" "${RESET}")" choice || exit 0
+    read -r -p "$(printf '%bSelect option [0-9, d]: %b' "${YELLOW}" "${RESET}")" choice || exit 0
     case "$choice" in
         1) push_ramdisk ;;
-        2) boot_system "$DEFAULT_ARGS" 0 ;;
-        3) boot_system "-v $DEFAULT_ARGS" 1 ;;
+        2) boot_system "$DEFAULT_ARGS" ;;
+        3) boot_system "-v $DEFAULT_ARGS" ;;
         4)
             read -r -e -i "-v $DEFAULT_ARGS " -p "Edit boot args: " custom
             [ -z "$custom" ] && custom="-v $DEFAULT_ARGS"
-            boot_system "$custom" 1
+            boot_system "$custom"
             ;;
         5) return_to_loader ;;
-        6) boot_system "$METAL_VERBOSE" 1 ;;
-        7) boot_system "$METAL_PERF" 0 ;;
-        8) boot_system "$METAL_PERF fbscale=2" 0 ;;
-        9) boot_system "-v $METAL_ARGS" 1 ;;
+        6) boot_system "$METAL_VERBOSE" ;;
+        7) boot_system "$METAL_PERF" ;;
+        8) boot_system "$METAL_PERF fbscale=2" ;;
+        9) boot_system "-v $METAL_ARGS" ;;
+        d|D) boot_system "$METAL_DEFER" ;;
         0) echo "Exiting."; exit 0 ;;
         *) printf '%bInvalid selection.%b\n' "${RED}" "${RESET}" ;;
     esac

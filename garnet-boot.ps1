@@ -7,8 +7,11 @@ $DIV = '------------------------------------------------------------'
 $DEFAULT_ARGS = 'garnet_touch=1 garnet_buttons=1 garnet_cpufreq=1 bootcpu=7 cpus=8 gpu=1 gl=1 adreno_speed=6 fb_filter=1 cpuload=500 ddr=2 fb_queue=1 touch_lat=1 ui_lite=1 caenv=CA_DISABLE_DIRTY_REGIONS=1 gpu_recover=1'
 $METAL_ARGS = "$DEFAULT_ARGS metal=1 metal_all=1 ca_metallib=/redwood/share/QuartzCore-default.metallib"
 # Metal as upstream's tools/metal-run.sh runs it (see garnet-boot.sh): fb_filter=1 out, the proven arguments in.
-$METAL_PERF = 'garnet_touch=1 garnet_buttons=1 garnet_cpufreq=1 bootcpu=7 cpus=8 gpu=1 gl=1 adreno_speed=6 ddr=2 fb_queue=1 ui_lite=1 caenv=CA_DISABLE_DIRTY_REGIONS=1 gpu_recover=1 metal=1 metal_all=1 ca_metallib=/redwood/share/QuartzCore-default.metallib wallpaper_freeze=1 metal_defer=1 fb_threads=6 fb_hz=120 anim_max=1'
-$METAL_VERBOSE = "-v $METAL_PERF touch_lat=1 cpuload=500 gpu_log=1 metal_fps=1"
+# metal_defer=1 only in $METAL_DEFER (option d): before the plug-in's fix it showed frames the GPU had not drawn (black strips)
+$METAL_PERF = 'garnet_touch=1 garnet_buttons=1 garnet_cpufreq=1 bootcpu=7 cpus=8 gpu=1 gl=1 adreno_speed=6 ddr=2 fb_queue=1 ui_lite=1 caenv=CA_DISABLE_DIRTY_REGIONS=1 gpu_recover=1 metal=1 metal_all=1 ca_metallib=/redwood/share/QuartzCore-default.metallib wallpaper_freeze=1 fb_threads=6 fb_hz=120 anim_max=1'
+# verbose: measured, plus on trial the panel's DSI interface (fb_intf: frames written behind the scan, its rate measured) and the GPU at 940 MHz
+$METAL_VERBOSE = "-v $($METAL_PERF -replace 'adreno_speed=6','adreno_speed=8') fb_intf=0x0ae36000 fb_measure=1 touch_lat=1 cpuload=500 gpu_log=1 metal_fps=1"
+$METAL_DEFER = "$METAL_PERF metal_defer=1"
 $RAMDISK = 'userland/system.apfs'
 
 function Show-Menu {
@@ -48,6 +51,7 @@ function Show-Menu {
     }
 
     Write-Host $DIV -ForegroundColor Cyan
+    Write-Host "Every boot follows the log: press S to save it and detach." -ForegroundColor Cyan
     Write-Host "  1) Push System Ramdisk (system.apfs)" -ForegroundColor Green
     Write-Host "  2) Boot HakiOS (Release)" -ForegroundColor Green
     Write-Host "  3) Boot HakiOS (Verbose Log)" -ForegroundColor Green
@@ -57,6 +61,7 @@ function Show-Menu {
     Write-Host "  7) Boot HakiOS with Metal (no verbose, fast)" -ForegroundColor Green
     Write-Host "  8) Boot HakiOS with Metal (no verbose, fast, 750x1624 render: fbscale=2)" -ForegroundColor Green
     Write-Host "  9) Boot HakiOS with Metal (old Metal args, Verbose Log)" -ForegroundColor Green
+    Write-Host "  d) Boot HakiOS with Metal (fast, metal_defer=1: to compare against 7)" -ForegroundColor Green
     Write-Host "  0) Exit" -ForegroundColor Green
     Write-Host $SEP -ForegroundColor Cyan
 }
@@ -93,7 +98,7 @@ function Return-ToLoader {
 }
 
 function Boot-System {
-    param([string]$Args, [bool]$WithLog)
+    param([string]$BootArgs)
 
     if (-not (Check-Loader)) { return }
 
@@ -115,10 +120,10 @@ function Boot-System {
         $env:XL_KERNEL = $kernel
     }
 
-    Write-Host "Booting HakiOS with args: $Args" -ForegroundColor Cyan
+    Write-Host "Booting HakiOS with args: $BootArgs" -ForegroundColor Cyan
     $env:XL_SECS = 900
 
-    if ($WithLog) {
+    {
         New-Item -ItemType Directory -Force -Path 'logs' | Out-Null
         $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
         $logfile = "logs/garnet-boot-$stamp.txt"
@@ -126,7 +131,7 @@ function Boot-System {
         Write-Host "Note: Detaching log keeps iOS running. Use Option 5 to return to loader." -ForegroundColor Cyan
 
         $env:XL_FOLLOW = 5
-        $env:XL_CMDLINE = $Args
+        $env:XL_CMDLINE = $BootArgs
         $started = Get-Date
         & .\xl.ps1 run
         # this run's own log (never an older run's logs/last.log): the newest written since it started
@@ -139,29 +144,27 @@ function Boot-System {
         } else {
             Write-Host "No log of this run was fetched." -ForegroundColor Yellow
         }
-    } else {
-        $env:XL_CMDLINE = $Args
-        & .\xl.ps1 run
     }
 }
 
 while ($true) {
     Show-Menu
-    $choice = Read-Host "Select option [0-6]"
+    $choice = Read-Host "Select option [0-9, d]"
     switch ($choice) {
         '1' { Push-Ramdisk }
-        '2' { Boot-System $DEFAULT_ARGS $false }
-        '3' { Boot-System "-v $DEFAULT_ARGS" $true }
+        '2' { Boot-System $DEFAULT_ARGS }
+        '3' { Boot-System "-v $DEFAULT_ARGS" }
         '4' {
             $custom = Read-Host "Edit boot args (default: -v $DEFAULT_ARGS)"
             if ([string]::IsNullOrWhiteSpace($custom)) { $custom = "-v $DEFAULT_ARGS" }
-            Boot-System $custom $true
+            Boot-System $custom
         }
         '5' { Return-ToLoader }
-        '6' { Boot-System $METAL_VERBOSE $true }
-        '7' { Boot-System $METAL_PERF $false }
-        '8' { Boot-System "$METAL_PERF fbscale=2" $false }
-        '9' { Boot-System "-v $METAL_ARGS" $true }
+        '6' { Boot-System $METAL_VERBOSE }
+        '7' { Boot-System $METAL_PERF }
+        '8' { Boot-System "$METAL_PERF fbscale=2" }
+        '9' { Boot-System "-v $METAL_ARGS" }
+        'd' { Boot-System $METAL_DEFER }
         '0' { Write-Host "Exiting."; exit 0 }
         default { Write-Host "Invalid option." -ForegroundColor Red }
     }
