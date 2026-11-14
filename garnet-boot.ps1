@@ -15,9 +15,8 @@ $METAL_LOG = 'fb_measure=1 touch_lat=1 cpuload=500 gpu_log=1 metal_fps=1'
 $METAL_PERF = "$METAL_PERF $METAL_LOG"
 $METAL_VERBOSE = "-v $($METAL_PERF -replace 'adreno_speed=6','adreno_speed=8') fb_intf=0x0ae36000"
 $METAL_DEFER = "$METAL_PERF metal_defer=1"
-# option b: 7 with the blur back (ui_lite=1 left out, nothing else); option g: 7 with GMEM tiles (metal_gmem=1, on trial)
+# option b: 7 with the blur back (ui_lite=1 left out, nothing else)
 $METAL_BLUR = $METAL_PERF -replace 'ui_lite=1 ',''
-$METAL_GMEM = "$METAL_PERF metal_gmem=1"
 $RAMDISK = 'userland/system.apfs'
 
 function Show-Menu {
@@ -68,7 +67,6 @@ function Show-Menu {
     Write-Host "  8) Boot HakiOS with Metal (no verbose, fast, 750x1624 render: fbscale=2)" -ForegroundColor Green
     Write-Host "  9) Boot HakiOS with Metal (old Metal args, Verbose Log)" -ForegroundColor Green
     Write-Host "  b) Boot HakiOS with Metal (as 7, with blur: no ui_lite)" -ForegroundColor Green
-    Write-Host "  g) Boot HakiOS with Metal (as 7, GMEM tiles: metal_gmem=1, on trial)" -ForegroundColor Green
     Write-Host "  d) Boot HakiOS with Metal (fast, metal_defer=1: to compare against 7)" -ForegroundColor Green
     Write-Host "Every argument: bootargs.md" -ForegroundColor Cyan
     Write-Host "  0) Exit" -ForegroundColor Green
@@ -158,7 +156,7 @@ function Boot-System {
 
 while ($true) {
     Show-Menu
-    $choice = Read-Host "Select option [0-9, b, g, d]"
+    $choice = Read-Host "Select option [0-9, b, d]"
     switch ($choice) {
         '1' { Push-Ramdisk }
         '2' { Boot-System $DEFAULT_ARGS }
@@ -174,7 +172,6 @@ while ($true) {
         '8' { Boot-System "$METAL_PERF fbscale=2" }
         '9' { Boot-System "-v $METAL_ARGS" }
         'b' { Boot-System $METAL_BLUR }
-        'g' { Boot-System $METAL_GMEM }
         'd' { Boot-System $METAL_DEFER }
         '0' { Write-Host "Exiting."; exit 0 }
         default { Write-Host "Invalid option." -ForegroundColor Red }

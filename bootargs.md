@@ -19,7 +19,6 @@ about 145 of them, so the sets below replace arguments rather than add to them.
 | 8 | 7 + `fbscale=2` | Metal, rendered at 750x1624 and scaled up |
 | 9 | `-v METAL_ARGS` = `-v DEFAULT_ARGS metal=1 metal_all=1 ca_metallib=...` | Old Metal set, verbose |
 | b | 7 without `ui_lite=1` | Metal like 7, but with blur (Reduce Transparency off) |
-| g | 7 + `metal_gmem=1` | Metal like 7, with A7xx GMEM tiles (on trial) |
 | d | 7 + `metal_defer=1` | Metal like 7, with deferred command recording (to compare) |
 | 0 | (none) | Exit the script |
 
@@ -49,7 +48,7 @@ just not shown on the panel.
 - `gpu=1` (K): start the GPU while the system boots and keep it for the window server (the HakiosGPU service). `0` or absent: everything is drawn in software. All options.
 - `adreno_speed=N` (K): the GPU clock level asked of the GMU.
   - `1` = 345 MHz (default), `2` = 500, `3` = 600, `4` = 650, `5` = 734
-  - `6` = 816 MHz, Turbo: options 2–5, 7–9, b, g, d
+  - `6` = 816 MHz, Turbo: options 2–5, 7–9, b, d
   - `7` = 875 MHz
   - `8` = 940 MHz, SuperTurbo, the maximum: option 6
 - `gpu_recover=1` (K): a GPU submission that never finishes gets the core reset and given work again, instead of the window server hanging. `0` or absent: no recovery. All options.
@@ -58,13 +57,13 @@ just not shown on the panel.
   - `2`: also every register access (very noisy).
   - `0` (default): quiet.
 
-  Options 6, 7, 8, b, g, d.
+  Options 6, 7, 8, b, d.
 
 ## Display / framebuffer (the kernel scales the 1125x2436 iPhone frame onto the 1220x2712 panel)
 
 - `fb_queue=N` (K): how many finished frames may wait for the panel, `1` or `2` (default 2). `1` = lowest latency. All options.
 - `fb_threads=N` (K): how many cores scale each frame onto the panel together, `1`–`8` (default 3). `6` in the Metal fast sets.
-- `fb_hz=N` (K): how many times a second frames are put on the panel (default 60). `120` = the panel's rate. Options 6–8, b, g, d.
+- `fb_hz=N` (K): how many times a second frames are put on the panel (default 60). `120` = the panel's rate. Options 6–8, b, d.
 - `fb_filter=N` (K): how a frame is scaled.
   - `0`: nearest neighbour.
   - `1`: always bilinear (sharper, about 2x the cost).
@@ -77,7 +76,7 @@ just not shown on the panel.
 
   Option 8.
 - `fb_intf=0xADDR` (K): physical address of the panel's DSI interface. `0x0ae36000` = garnet's INTF_1. With it, frames are written behind the panel's scan line (`fb_beam`, which is on whenever this is known), so there is no tearing, and `fb_measure` can read the real refresh rate. Absent: frames are written on a timer. Option 6.
-- `fb_measure=1` (K): about a minute after boot, log how often the panel really refreshes (needs `fb_intf`). `0`/absent: off. Options 6–8, b, g, d.
+- `fb_measure=1` (K): about a minute after boot, log how often the panel really refreshes (needs `fb_intf`). `0`/absent: off. Options 6–8, b, d.
 
 ## Userland / CoreAnimation
 
@@ -100,28 +99,25 @@ just not shown on the panel.
   - `2`: wallpaper hidden (to measure what it costs).
   - Absent: the live poster is composed every frame.
 
-  Metal fast sets (6–8, b, g, d).
+  Metal fast sets (6–8, b, d).
 - `anim_max=1` (U): every SpringBoard animation asks for 80–120 fps. Without it, animations that ask for nothing ran at 24 fps through Metal. Metal fast sets.
 - `touch_lat=1` (KU): latency lines for each touch sample, injected touch, swap and frame shown (`tl: p/i/s/v ...`). Read by tools/latency.py and tools/frames.py. `0`/absent: off. All options.
 - `cpuload=MS` (K): every MS milliseconds, log each core's busy percentage (`tl: u ...`). `500` = twice a second; `0`/absent: off. All options.
 
 ## Metal plug-in (hakios-metal)
 
-- `metal=1` (KU): the window server draws through hakios-metal's Metal plug-in (`/redwood/lib/RedwoodMetal.bundle`) instead of OpenGL ES. Absent: OpenGL ES. Options 6–9, b, g, d.
-- `metal_all=1` (U): every process that asks gets the Metal device. Without it, only the window server (backboardd) does, and others such as SpringBoard's Siri orb fall back to their non-Metal path. Options 6–9, b, g, d.
-- `ca_metallib=PATH` (U): the CoreAnimation shader library handed to the window server when it asks for `default.metallib`. `/redwood/share/QuartzCore-default.metallib` is the one in root.apfs. Options 6–9, b, g, d.
+- `metal=1` (KU): the window server draws through hakios-metal's Metal plug-in (`/redwood/lib/RedwoodMetal.bundle`) instead of OpenGL ES. Absent: OpenGL ES. Options 6–9, b, d.
+- `metal_all=1` (U): every process that asks gets the Metal device. Without it, only the window server (backboardd) does, and others such as SpringBoard's Siri orb fall back to their non-Metal path. Options 6–9, b, d.
+- `ca_metallib=PATH` (U): the CoreAnimation shader library handed to the window server when it asks for `default.metallib`. `/redwood/share/QuartzCore-default.metallib` is the one in root.apfs. Options 6–9, b, d.
 - `metal_fps=N` (U): plug-in counters every 5 s (frames, passes, GPU busy, GMEM or sysmem per pass, slowest passes).
   - `1`: the counters.
   - `draws`: also time every draw of a sysmem pass by shader (heavy).
   - Absent: off.
 
-  Options 6–8, b, g, d.
+  Options 6–8, b, d.
 - `metal_defer=1` (U): the window server's command buffers are recorded on a hakios-metal thread, so CoreAnimation's render thread does not wait about 40 µs for each draw to be encoded. Absent: recorded inline. Option d.
-- `metal_gmem=1` (U): tiled rendering in the GPU's 512 KiB on-chip GMEM. For each kind of pass, the plug-in measures GMEM against sysmem and keeps the cheaper one. The A7xx GMEM path is new in this build and on trial.
-  - Absent: every pass is drawn in sysmem.
-  - On redwood's A6xx it won nothing for CoreAnimation's small passes. garnet's passes are full-screen (see `CA_DISABLE_DIRTY_REGIONS`), which is where it can help.
-
-  Option g.
+- `metal_gmem=1` (U): tiled rendering in the GPU's on-chip GMEM. Not used on garnet: the plug-in draws every pass in
+  sysmem on the A7xx whatever this says. Lifting that (14 November build) hung the GPU 14–17 times a boot.
 
 ## Added by the loader (not in the menu's sets)
 
