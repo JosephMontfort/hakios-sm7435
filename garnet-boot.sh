@@ -51,6 +51,12 @@ METAL_PERF="$METAL_PERF $METAL_LOG"
 METAL_VERBOSE="-v ${METAL_PERF/adreno_speed=6/adreno_speed=8} fb_intf=0x0ae36000"
 # the fast set with the window server's command buffers recorded on hakios-metal's own thread (needs the fixed plug-in)
 METAL_DEFER="$METAL_PERF metal_defer=1"
+# option 7 with the blur back: ui_lite=1 (Reduce Transparency) left out, nothing else changed. /var is fresh every
+# boot (var_store is off), so nothing from an earlier ui_lite=1 boot keeps it on.
+METAL_BLUR="${METAL_PERF/ui_lite=1 /}"
+# option 7 with GMEM tiles on the A7xx (metal_gmem=1): each pass is drawn in the GPU's 512 KiB on-chip memory where
+# the plug-in measures it cheaper than drawing straight into memory; on trial
+METAL_GMEM="$METAL_PERF metal_gmem=1"
 RAMDISK="userland/system.apfs"
 
 check_prerequisites() {
@@ -106,7 +112,10 @@ show_menu() {
     printf '  %b7)%b Boot HakiOS with Metal (no verbose, fast)\n' "${GREEN}" "${RESET}"
     printf '  %b8)%b Boot HakiOS with Metal (no verbose, fast, 750x1624 render: fbscale=2)\n' "${GREEN}" "${RESET}"
     printf '  %b9)%b Boot HakiOS with Metal (old Metal args, Verbose Log)\n' "${GREEN}" "${RESET}"
+    printf '  %bb)%b Boot HakiOS with Metal (as 7, with blur: no ui_lite)\n' "${GREEN}" "${RESET}"
+    printf '  %bg)%b Boot HakiOS with Metal (as 7, GMEM tiles: metal_gmem=1, on trial)\n' "${GREEN}" "${RESET}"
     printf '  %bd)%b Boot HakiOS with Metal (fast, metal_defer=1: to compare against 7)\n' "${GREEN}" "${RESET}"
+    printf '%bEvery argument: bootargs.md%b\n' "${CYAN}" "${RESET}"
     printf '  %b0)%b Exit\n' "${GREEN}" "${RESET}"
     printf '%b\n' "${CYAN}${SEP}${RESET}"
 }
@@ -266,7 +275,7 @@ check_prerequisites
 
 while true; do
     show_menu
-    read -r -p "$(printf '%bSelect option [0-9, d]: %b' "${YELLOW}" "${RESET}")" choice || exit 0
+    read -r -p "$(printf '%bSelect option [0-9, b, g, d]: %b' "${YELLOW}" "${RESET}")" choice || exit 0
     case "$choice" in
         1) push_ramdisk ;;
         2) boot_system "$DEFAULT_ARGS" ;;
@@ -281,6 +290,8 @@ while true; do
         7) boot_system "$METAL_PERF" ;;
         8) boot_system "$METAL_PERF fbscale=2" ;;
         9) boot_system "-v $METAL_ARGS" ;;
+        b|B) boot_system "$METAL_BLUR" ;;
+        g|G) boot_system "$METAL_GMEM" ;;
         d|D) boot_system "$METAL_DEFER" ;;
         0) echo "Exiting."; exit 0 ;;
         *) printf '%bInvalid selection.%b\n' "${RED}" "${RESET}" ;;
