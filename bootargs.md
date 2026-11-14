@@ -20,6 +20,8 @@ about 145 of them, so the sets below replace arguments rather than add to them.
 | 9 | `-v METAL_ARGS` = `-v DEFAULT_ARGS metal=1 metal_all=1 ca_metallib=...` | Old Metal set, verbose |
 | b | 7 without `ui_lite=1` | Metal like 7, but with blur (Reduce Transparency off) |
 | d | 7 + `metal_defer=1` | Metal like 7, with deferred command recording (to compare) |
+| g | 7 + `metal_gmem=1` | Metal like 7, with GMEM tiles (on trial) |
+| h | g with `adreno_speed=8` | As g, with the GPU at 940 MHz |
 | 0 | (none) | Exit the script |
 
 Every option that boots follows the log; press S to save it and detach. Without `-v` the log is still recorded,
@@ -48,22 +50,23 @@ just not shown on the panel.
 - `gpu=1` (K): start the GPU while the system boots and keep it for the window server (the HakiosGPU service). `0` or absent: everything is drawn in software. All options.
 - `adreno_speed=N` (K): the GPU clock level asked of the GMU.
   - `1` = 345 MHz (default), `2` = 500, `3` = 600, `4` = 650, `5` = 734
-  - `6` = 816 MHz, Turbo: options 2–5, 7–9, b, d
+  - `6` = 816 MHz, Turbo: options 2–5, 7–9, b, d, g
   - `7` = 875 MHz
-  - `8` = 940 MHz, SuperTurbo, the maximum: option 6
+  - `8` = 940 MHz, SuperTurbo, the maximum (this phone's speed bin 198 allows it): options 6, h
+- `adreno_hbb=N` (K): the GPU's highest bank bit, 13–16, for the NC_MODE registers and what Mesa is told. Default `14`, what this phone's own KGSL reports for its LPDDR4X (the 14 Nov build used 15). Only for a test; no option sets it.
 - `gpu_recover=1` (K): a GPU submission that never finishes gets the core reset and given work again, instead of the window server hanging. `0` or absent: no recovery. All options.
 - `gpu_log=N` (K): GPU logging.
   - `1`: one `tl: Q`/`q` line for each submission and its GPU time, plus clock and bandwidth lines. Used by tools/frames.py.
   - `2`: also every register access (very noisy).
   - `0` (default): quiet.
 
-  Options 6, 7, 8, b, d.
+  Options 6, 7, 8, b, d, g, h.
 
 ## Display / framebuffer (the kernel scales the 1125x2436 iPhone frame onto the 1220x2712 panel)
 
 - `fb_queue=N` (K): how many finished frames may wait for the panel, `1` or `2` (default 2). `1` = lowest latency. All options.
 - `fb_threads=N` (K): how many cores scale each frame onto the panel together, `1`–`8` (default 3). `6` in the Metal fast sets.
-- `fb_hz=N` (K): how many times a second frames are put on the panel (default 60). `120` = the panel's rate. Options 6–8, b, d.
+- `fb_hz=N` (K): how many times a second frames are put on the panel (default 60). `120` = the panel's rate. Options 6–8, b, d, g, h.
 - `fb_filter=N` (K): how a frame is scaled.
   - `0`: nearest neighbour.
   - `1`: always bilinear (sharper, about 2x the cost).
@@ -76,7 +79,7 @@ just not shown on the panel.
 
   Option 8.
 - `fb_intf=0xADDR` (K): physical address of the panel's DSI interface. `0x0ae36000` = garnet's INTF_1. With it, frames are written behind the panel's scan line (`fb_beam`, which is on whenever this is known), so there is no tearing, and `fb_measure` can read the real refresh rate. Absent: frames are written on a timer. Option 6.
-- `fb_measure=1` (K): about a minute after boot, log how often the panel really refreshes (needs `fb_intf`). `0`/absent: off. Options 6–8, b, d.
+- `fb_measure=1` (K): about a minute after boot, log how often the panel really refreshes (needs `fb_intf`). `0`/absent: off. Options 6–8, b, d, g, h.
 
 ## Userland / CoreAnimation
 
@@ -106,18 +109,19 @@ just not shown on the panel.
 
 ## Metal plug-in (hakios-metal)
 
-- `metal=1` (KU): the window server draws through hakios-metal's Metal plug-in (`/redwood/lib/RedwoodMetal.bundle`) instead of OpenGL ES. Absent: OpenGL ES. Options 6–9, b, d.
-- `metal_all=1` (U): every process that asks gets the Metal device. Without it, only the window server (backboardd) does, and others such as SpringBoard's Siri orb fall back to their non-Metal path. Options 6–9, b, d.
-- `ca_metallib=PATH` (U): the CoreAnimation shader library handed to the window server when it asks for `default.metallib`. `/redwood/share/QuartzCore-default.metallib` is the one in root.apfs. Options 6–9, b, d.
+- `metal=1` (KU): the window server draws through hakios-metal's Metal plug-in (`/redwood/lib/RedwoodMetal.bundle`) instead of OpenGL ES. Absent: OpenGL ES. Options 6–9, b, d, g, h.
+- `metal_all=1` (U): every process that asks gets the Metal device. Without it, only the window server (backboardd) does, and others such as SpringBoard's Siri orb fall back to their non-Metal path. Options 6–9, b, d, g, h.
+- `ca_metallib=PATH` (U): the CoreAnimation shader library handed to the window server when it asks for `default.metallib`. `/redwood/share/QuartzCore-default.metallib` is the one in root.apfs. Options 6–9, b, d, g, h.
 - `metal_fps=N` (U): plug-in counters every 5 s (frames, passes, GPU busy, GMEM or sysmem per pass, slowest passes).
   - `1`: the counters.
   - `draws`: also time every draw of a sysmem pass by shader (heavy).
   - Absent: off.
 
-  Options 6–8, b, d.
+  Options 6–8, b, d, g, h.
 - `metal_defer=1` (U): the window server's command buffers are recorded on a hakios-metal thread, so CoreAnimation's render thread does not wait about 40 µs for each draw to be encoded. Absent: recorded inline. Option d.
-- `metal_gmem=1` (U): tiled rendering in the GPU's on-chip GMEM. Not used on garnet: the plug-in draws every pass in
-  sysmem on the A7xx whatever this says. Lifting that (14 November build) hung the GPU 14–17 times a boot.
+- `metal_gmem=1` (U): tiled rendering in the GPU's on-chip GMEM (512 KB; 504 KB for tiles, the top 8 KB the colour cache) for passes of 56+ draws (`metal_gmem_draws=N` changes that), GMEM or sysmem picked per pass by what each cost before. On the A7xx only this turns it on. The 14 Nov build's GMEM hung the GPU 14–17 times a boot: the kernel had put GMEM's texture window at 16 MB, the phone's KGSL leaves it at 0. Options g, h.
+- `metal_specfull` (U): CoreAnimation's uber shader specialised by all 52 bytes of its configuration, as before; without it only the bytes that decide its branches count, so one specialisation serves every colour and opacity. For comparison only.
+- `metal_nospec` (U): no uber shader specialised at all (slow; for comparison only).
 
 ## Added by the loader (not in the menu's sets)
 

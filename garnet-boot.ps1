@@ -17,6 +17,9 @@ $METAL_VERBOSE = "-v $($METAL_PERF -replace 'adreno_speed=6','adreno_speed=8') f
 $METAL_DEFER = "$METAL_PERF metal_defer=1"
 # option b: 7 with the blur back (ui_lite=1 left out, nothing else)
 $METAL_BLUR = $METAL_PERF -replace 'ui_lite=1 ',''
+# option g: 7 with GMEM tiles (metal_gmem=1; GMEM's texture window now at 0, as the phone's KGSL has it); h: g at 940 MHz
+$METAL_GMEM = "$METAL_PERF metal_gmem=1"
+$METAL_GMEM_FAST = $METAL_GMEM -replace 'adreno_speed=6','adreno_speed=8'
 $RAMDISK = 'userland/system.apfs'
 
 function Show-Menu {
@@ -68,6 +71,8 @@ function Show-Menu {
     Write-Host "  9) Boot HakiOS with Metal (old Metal args, Verbose Log)" -ForegroundColor Green
     Write-Host "  b) Boot HakiOS with Metal (as 7, with blur: no ui_lite)" -ForegroundColor Green
     Write-Host "  d) Boot HakiOS with Metal (fast, metal_defer=1: to compare against 7)" -ForegroundColor Green
+    Write-Host "  g) Boot HakiOS with Metal (as 7, GMEM tiles: metal_gmem=1)" -ForegroundColor Green
+    Write-Host "  h) Boot HakiOS with Metal (as g, GPU at 940 MHz: adreno_speed=8)" -ForegroundColor Green
     Write-Host "Every argument: bootargs.md" -ForegroundColor Cyan
     Write-Host "  0) Exit" -ForegroundColor Green
     Write-Host $SEP -ForegroundColor Cyan
@@ -173,6 +178,8 @@ while ($true) {
         '9' { Boot-System "-v $METAL_ARGS" }
         'b' { Boot-System $METAL_BLUR }
         'd' { Boot-System $METAL_DEFER }
+        'g' { Boot-System $METAL_GMEM }
+        'h' { Boot-System $METAL_GMEM_FAST }
         '0' { Write-Host "Exiting."; exit 0 }
         default { Write-Host "Invalid option." -ForegroundColor Red }
     }

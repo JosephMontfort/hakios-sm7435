@@ -54,6 +54,12 @@ METAL_DEFER="$METAL_PERF metal_defer=1"
 # option 7 with the blur back: ui_lite=1 (Reduce Transparency) left out, nothing else changed. /var is fresh every
 # boot (var_store is off), so nothing from an earlier ui_lite=1 boot keeps it on.
 METAL_BLUR="${METAL_PERF/ui_lite=1 /}"
+# option 7 with GMEM tiles (metal_gmem=1): passes of many draws drawn in the GPU's 512 KB on-chip memory, written out
+# once, instead of every draw blending straight in DDR. Back on trial now that the kernel leaves GMEM's texture window
+# at address 0 as the phone's own KGSL does (it was at 16 MB: every tile's framebuffer fetch faulted, the 14 Nov hangs).
+METAL_GMEM="$METAL_PERF metal_gmem=1"
+# the same at the GPU's top clock, 940 MHz (adreno_speed=8, which this phone's speed bin allows) instead of 816
+METAL_GMEM_FAST="${METAL_GMEM/adreno_speed=6/adreno_speed=8}"
 RAMDISK="userland/system.apfs"
 
 check_prerequisites() {
@@ -111,6 +117,8 @@ show_menu() {
     printf '  %b9)%b Boot HakiOS with Metal (old Metal args, Verbose Log)\n' "${GREEN}" "${RESET}"
     printf '  %bb)%b Boot HakiOS with Metal (as 7, with blur: no ui_lite)\n' "${GREEN}" "${RESET}"
     printf '  %bd)%b Boot HakiOS with Metal (fast, metal_defer=1: to compare against 7)\n' "${GREEN}" "${RESET}"
+    printf '  %bg)%b Boot HakiOS with Metal (as 7, GMEM tiles: metal_gmem=1)\n' "${GREEN}" "${RESET}"
+    printf '  %bh)%b Boot HakiOS with Metal (as g, GPU at 940 MHz: adreno_speed=8)\n' "${GREEN}" "${RESET}"
     printf '%bEvery argument: bootargs.md%b\n' "${CYAN}" "${RESET}"
     printf '  %b0)%b Exit\n' "${GREEN}" "${RESET}"
     printf '%b\n' "${CYAN}${SEP}${RESET}"
@@ -288,6 +296,8 @@ while true; do
         9) boot_system "-v $METAL_ARGS" ;;
         b|B) boot_system "$METAL_BLUR" ;;
         d|D) boot_system "$METAL_DEFER" ;;
+        g|G) boot_system "$METAL_GMEM" ;;
+        h|H) boot_system "$METAL_GMEM_FAST" ;;
         0) echo "Exiting."; exit 0 ;;
         *) printf '%bInvalid selection.%b\n' "${RED}" "${RESET}" ;;
     esac
